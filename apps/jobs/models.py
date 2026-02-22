@@ -1,5 +1,8 @@
 from django.db import models
+from django.contrib.auth import get_user_model
 from enum import Enum
+
+User = get_user_model()
 
 
 class ExperienceLevel(str, Enum):
@@ -90,3 +93,70 @@ class Job(models.Model):
 
     def __str__(self):
         return f"{self.title} at {self.company.name}"
+
+
+class SavedJobStatus(str, Enum):
+    """Status choices for saved jobs."""
+    ACTIVE = 'active'
+    EXPIRED = 'expired'
+    FRESH = 'fresh'
+
+    @classmethod
+    def choices(cls):
+        """Return choices in Django format."""
+        return [(choice.value, choice.label) for choice in cls]
+
+    @property
+    def label(self):
+        """Return human-readable label."""
+        labels = {
+            'active': 'Active',
+            'expired': 'Expired',
+            'fresh': 'Fresh',
+        }
+        return labels.get(self.value, self.value)
+
+
+class SavedJob(models.Model):
+    """
+    SavedJob model representing jobs saved by users.
+    """
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='saved_jobs',
+        blank=False,
+        null=False
+    )
+    job = models.ForeignKey(
+        Job,
+        on_delete=models.CASCADE,
+        related_name='saved_by_users',
+        blank=False,
+        null=False
+    )
+    status = models.CharField(
+        max_length=20,
+        choices=SavedJobStatus.choices(),
+        default=SavedJobStatus.ACTIVE.value,
+        blank=False,
+        null=False
+    )
+    notes = models.TextField(blank=True, null=True)
+    saved_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'saved_jobs'
+        verbose_name = 'Saved Job'
+        verbose_name_plural = 'Saved Jobs'
+        ordering = ['-saved_at']
+        unique_together = [['user', 'job']]
+        indexes = [
+            models.Index(fields=['user']),
+            models.Index(fields=['job']),
+            models.Index(fields=['status']),
+            models.Index(fields=['-saved_at']),
+        ]
+
+    def __str__(self):
+        return f"{self.user.email} saved {self.job.title}"

@@ -1,6 +1,11 @@
-from .models import Job
-from .serializers import JobSerializer
-from .exceptions import JobNotFoundException, JobAlreadyExistsException
+from .models import Job, SavedJob
+from .serializers import JobSerializer, SavedJobSerializer
+from .exceptions import (
+    JobNotFoundException,
+    JobAlreadyExistsException,
+    SavedJobNotFoundException,
+    SavedJobAlreadyExistsException,
+)
 
 
 class JobService:
@@ -120,3 +125,132 @@ class JobService:
 
         job.delete()
         return {'message': 'Job deleted successfully.'}
+
+
+class SavedJobService:
+    """
+    Service class containing business logic for saved job operations.
+    """
+
+    @staticmethod
+    def create_saved_job(user, data: dict):
+        """
+        Create a new saved job.
+
+        Args:
+            user: User instance
+            data: validated_data dict from SavedJobCreateSerializer
+
+        Returns:
+            dict: Saved job data
+
+        Raises:
+            SavedJobAlreadyExistsException: If user already saved this job
+        """
+        if SavedJob.objects.filter(user=user, job=data['job']).exists():
+            raise SavedJobAlreadyExistsException()
+
+        saved_job_data = {
+            'user': user,
+            'job': data['job'],
+            'status': data.get('status', 'active'),
+        }
+        if data.get('notes') is not None:
+            saved_job_data['notes'] = data['notes']
+
+        saved_job = SavedJob.objects.create(**saved_job_data)
+
+        serializer = SavedJobSerializer(saved_job)
+        return serializer.data
+
+    @staticmethod
+    def get_saved_job(user, saved_job_id: int):
+        """
+        Get saved job by ID.
+
+        Args:
+            user: User instance
+            saved_job_id: Saved job ID
+
+        Returns:
+            dict: Saved job data
+
+        Raises:
+            SavedJobNotFoundException: If saved job doesn't exist or doesn't belong to user
+        """
+        try:
+            saved_job = SavedJob.objects.get(id=saved_job_id, user=user)
+        except SavedJob.DoesNotExist:
+            raise SavedJobNotFoundException()
+
+        serializer = SavedJobSerializer(saved_job)
+        return serializer.data
+
+    @staticmethod
+    def list_saved_jobs(user):
+        """
+        List all saved jobs for the authenticated user.
+
+        Args:
+            user: User instance
+
+        Returns:
+            list: List of saved job data dictionaries
+        """
+        saved_jobs = SavedJob.objects.filter(user=user).select_related('job', 'job__company').all()
+        serializer = SavedJobSerializer(saved_jobs, many=True)
+        return serializer.data
+
+    @staticmethod
+    def update_saved_job(user, saved_job_id: int, data: dict):
+        """
+        Update saved job.
+
+        Args:
+            user: User instance
+            saved_job_id: Saved job ID
+            data: validated_data dict from SavedJobUpdateSerializer
+
+        Returns:
+            dict: Updated saved job data
+
+        Raises:
+            SavedJobNotFoundException: If saved job doesn't exist or doesn't belong to user
+        """
+        try:
+            saved_job = SavedJob.objects.get(id=saved_job_id, user=user)
+        except SavedJob.DoesNotExist:
+            raise SavedJobNotFoundException()
+
+        updatable_fields = ['status', 'notes']
+        for field in updatable_fields:
+            if data.get(field) is not None:
+                setattr(saved_job, field, data[field])
+
+        saved_job.save()
+
+        serializer = SavedJobSerializer(saved_job)
+        return serializer.data
+
+    @staticmethod
+    def delete_saved_job(user, saved_job_id: int):
+        """
+        Delete saved job.
+
+        Args:
+            user: User instance
+            saved_job_id: Saved job ID
+
+        Returns:
+            dict: Success message
+
+        Raises:
+            SavedJobNotFoundException: If saved job doesn't exist or doesn't belong to user
+        """
+        try:
+            saved_job = SavedJob.objects.get(id=saved_job_id, user=user)
+        except SavedJob.DoesNotExist:
+            raise SavedJobNotFoundException()
+
+        saved_job.delete()
+        return {'message': 'Saved job deleted successfully.'}

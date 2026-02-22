@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Company, Job
+from .models import Company, Job, SavedJob
 
 
 class CompanySerializer(serializers.ModelSerializer):
@@ -72,4 +72,50 @@ class JobSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ['id', 'scraped_at', 'created_at', 'updated_at']
 
+
+class SavedJobCreateSerializer(serializers.ModelSerializer):
+    """
+    Serializer for saved job creation.
+    """
+    job_id = serializers.PrimaryKeyRelatedField(
+        queryset=Job.objects.all(),
+        source='job',
+        write_only=True
+    )
+
+    class Meta:
+        model = SavedJob
+        fields = ['job_id', 'status', 'notes']
+        extra_kwargs = {
+            'status': {'required': False},
+            'notes': {'required': False},
+        }
+
+
+class SavedJobUpdateSerializer(serializers.ModelSerializer):
+    """
+    Serializer for saved job update.
+    """
+    class Meta:
+        model = SavedJob
+        fields = ['status', 'notes']
+        extra_kwargs = {
+            'status': {'required': False},
+            'notes': {'required': False},
+        }
+
+
+class SavedJobSerializer(serializers.ModelSerializer):
+    """
+    Serializer for saved job data representation.
+    Includes nested job information.
+    """
+    job = JobSerializer(read_only=True)
+
+    class Meta:
+        model = SavedJob
+        fields = [
+            'id', 'job', 'status', 'notes', 'saved_at'
+        ]
+        read_only_fields = ['id', 'saved_at']
 

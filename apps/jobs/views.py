@@ -2,10 +2,22 @@ from rest_framework import status, generics
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from drf_spectacular.utils import extend_schema, OpenApiExample
-from .services import JobService
-from .serializers import JobSerializer, JobCreateSerializer, JobUpdateSerializer
+from .services import JobService, SavedJobService
+from .serializers import (
+    JobSerializer,
+    JobCreateSerializer,
+    JobUpdateSerializer,
+    SavedJobSerializer,
+    SavedJobCreateSerializer,
+    SavedJobUpdateSerializer,
+)
 from apps.common_serializers import MessageSerializer, ErrorSerializer
-from .exceptions import JobNotFoundException, JobAlreadyExistsException
+from .exceptions import (
+    JobNotFoundException,
+    JobAlreadyExistsException,
+    SavedJobNotFoundException,
+    SavedJobAlreadyExistsException,
+)
 
 
 class JobCreateView(generics.GenericAPIView):
@@ -160,6 +172,157 @@ class JobDeleteView(generics.GenericAPIView):
             result = JobService.delete_job(job_id)
             return Response(result, status=status.HTTP_200_OK)
         except JobNotFoundException:
+            raise
+        except ValueError as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+
+class SavedJobCreateView(generics.GenericAPIView):
+    """
+    Create a new saved job.
+    """
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        request=SavedJobCreateSerializer,
+        responses={
+            201: SavedJobSerializer,
+            400: ErrorSerializer,
+        },
+        examples=[
+            OpenApiExample(
+                'Saved Job Creation Request',
+                value={
+                    'job_id': 1,
+                    'status': 'active',
+                    'notes': 'Interested in this position'
+                }
+            )
+        ]
+    )
+    def post(self, request, *args, **kwargs):
+        serializer = SavedJobCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        try:
+            result = SavedJobService.create_saved_job(request.user, serializer.validated_data)
+            return Response(result, status=status.HTTP_201_CREATED)
+        except SavedJobAlreadyExistsException:
+            raise
+        except ValueError as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+
+class SavedJobListView(generics.GenericAPIView):
+    """
+    List all saved jobs for the authenticated user.
+    """
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        responses={
+            200: SavedJobSerializer(many=True),
+        }
+    )
+    def get(self, request, *args, **kwargs):
+        saved_jobs = SavedJobService.list_saved_jobs(request.user)
+        return Response(saved_jobs, status=status.HTTP_200_OK)
+
+
+class SavedJobDetailView(generics.GenericAPIView):
+    """
+    Retrieve a specific saved job by ID.
+    """
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        responses={
+            200: SavedJobSerializer,
+            404: ErrorSerializer,
+        }
+    )
+    def get(self, request, *args, **kwargs):
+        try:
+            saved_job_id = kwargs.get('pk')
+            saved_job_data = SavedJobService.get_saved_job(request.user, saved_job_id)
+            return Response(saved_job_data, status=status.HTTP_200_OK)
+        except SavedJobNotFoundException:
+            raise
+        except ValueError as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+
+class SavedJobUpdateView(generics.GenericAPIView):
+    """
+    Update a saved job.
+    """
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        request=SavedJobUpdateSerializer,
+        responses={
+            200: SavedJobSerializer,
+            400: ErrorSerializer,
+            404: ErrorSerializer,
+        },
+        examples=[
+            OpenApiExample(
+                'Saved Job Update Request',
+                value={
+                    'status': 'expired',
+                    'notes': 'Job posting has expired'
+                }
+            )
+        ]
+    )
+    def put(self, request, *args, **kwargs):
+        return self.update(request, *args, **kwargs)
+
+    @extend_schema(
+        request=SavedJobUpdateSerializer,
+        responses={
+            200: SavedJobSerializer,
+            400: ErrorSerializer,
+            404: ErrorSerializer,
+        }
+    )
+    def patch(self, request, *args, **kwargs):
+        return self.update(request, *args, **kwargs)
+
+    def update(self, request, *args, **kwargs):
+        serializer = SavedJobUpdateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        try:
+            saved_job_id = kwargs.get('pk')
+            saved_job_data = SavedJobService.update_saved_job(
+                request.user,
+                saved_job_id,
+                serializer.validated_data
+            )
+            return Response(saved_job_data, status=status.HTTP_200_OK)
+        except SavedJobNotFoundException:
+            raise
+        except ValueError as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+
+class SavedJobDeleteView(generics.GenericAPIView):
+    """
+    Delete a saved job.
+    """
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        responses={
+            200: MessageSerializer,
+            404: ErrorSerializer,
+        }
+    )
+    def delete(self, request, *args, **kwargs):
+        try:
+            saved_job_id = kwargs.get('pk')
+            result = SavedJobService.delete_saved_job(request.user, saved_job_id)
+            return Response(result, status=status.HTTP_200_OK)
+        except SavedJobNotFoundException:
             raise
         except ValueError as e:
             return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
