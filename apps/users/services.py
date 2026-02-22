@@ -3,13 +3,6 @@ from django.contrib.auth import authenticate
 from rest_framework_simplejwt.tokens import RefreshToken
 from .serializers import UserSerializer
 from .exceptions import InvalidCredentialsException, UserAlreadyExistsException
-from .schemas import (
-    UserRegistrationSchema,
-    UserLoginSchema,
-    UserLogoutSchema,
-    UserProfileUpdateSchema,
-    UserPasswordChangeSchema,
-)
 
 User = get_user_model()
 
@@ -20,98 +13,94 @@ class UserService:
     """
 
     @staticmethod
-    def register_user(schema: UserRegistrationSchema):
+    def register_user(data: dict):
         """
         Register a new user and return user data with JWT tokens.
-        
+
         Args:
-            schema: UserRegistrationSchema with user data
-            
+            data: validated_data dict from UserRegistrationSerializer
+
         Returns:
             dict: User data and tokens
-            
+
         Raises:
             UserAlreadyExistsException: If user with email already exists
         """
-        if User.objects.filter(email=schema.email).exists():
+        if User.objects.filter(email=data['email']).exists():
             raise UserAlreadyExistsException()
-        
+
         user_data = {
-            'email': schema.email,
-            'password': schema.password,
+            'email': data['email'],
+            'password': data['password'],
         }
-        if schema.username:
-            user_data['username'] = schema.username
-        if schema.first_name:
-            user_data['first_name'] = schema.first_name
-        if schema.last_name:
-            user_data['last_name'] = schema.last_name
-        
+        if data.get('username'):
+            user_data['username'] = data['username']
+        if data.get('first_name'):
+            user_data['first_name'] = data['first_name']
+        if data.get('last_name'):
+            user_data['last_name'] = data['last_name']
+
         user = User.objects.create_user(**user_data)
-        
+
         refresh = RefreshToken.for_user(user)
         tokens = {
             'access': str(refresh.access_token),
             'refresh': str(refresh)
         }
-        
+
         user_serializer = UserSerializer(user)
-        
+
         return {
             'user': user_serializer.data,
             'tokens': tokens
         }
 
     @staticmethod
-    def login_user(schema: UserLoginSchema):
+    def login_user(data: dict):
         """
         Authenticate user and return user data with JWT tokens.
-        
+
         Args:
-            schema: UserLoginSchema with email and password
-            
+            data: validated_data dict from UserLoginSerializer
+
         Returns:
             dict: User data and tokens
-            
+
         Raises:
             InvalidCredentialsException: If credentials are invalid
         """
-        if not schema.email or not schema.password:
-            raise ValueError("Email and password are required.")
-        
-        user = authenticate(username=schema.email, password=schema.password)
-        
+        user = authenticate(username=data['email'], password=data['password'])
+
         if not user:
             raise InvalidCredentialsException()
-        
+
         refresh = RefreshToken.for_user(user)
         tokens = {
             'access': str(refresh.access_token),
             'refresh': str(refresh)
         }
-        
+
         user_serializer = UserSerializer(user)
-        
+
         return {
             'user': user_serializer.data,
             'tokens': tokens
         }
 
     @staticmethod
-    def logout_user(schema: UserLogoutSchema):
+    def logout_user(data: dict):
         """
         Logout user by blacklisting refresh token.
-        
+
         Args:
-            schema: UserLogoutSchema with refresh token
-            
+            data: validated_data dict from UserLogoutSerializer
+
         Returns:
             dict: Success message
         """
         try:
-            if schema.refresh:
-                token = RefreshToken(schema.refresh)
-                token.blacklist()
+            token = RefreshToken(data['refresh'])
+            token.blacklist()
             return {'message': 'Successfully logged out.'}
         except Exception:
             return {'error': 'Invalid token.'}
@@ -120,10 +109,10 @@ class UserService:
     def get_user_profile(user):
         """
         Get user profile data.
-        
+
         Args:
             user: User instance
-            
+
         Returns:
             dict: User data
         """
@@ -131,48 +120,42 @@ class UserService:
         return serializer.data
 
     @staticmethod
-    def update_user_profile(user, schema: UserProfileUpdateSchema):
+    def update_user_profile(user, data: dict):
         """
         Update user profile.
-        
+
         Args:
             user: User instance
-            schema: UserProfileUpdateSchema with update data
-            
+            data: validated_data dict from UserProfileSerializer
+
         Returns:
             dict: Updated user data
         """
-        if schema.username is not None:
-            user.username = schema.username
-        if schema.first_name is not None:
-            user.first_name = schema.first_name
-        if schema.last_name is not None:
-            user.last_name = schema.last_name
-        
+        if data.get('username') is not None:
+            user.username = data['username']
+        if data.get('first_name') is not None:
+            user.first_name = data['first_name']
+        if data.get('last_name') is not None:
+            user.last_name = data['last_name']
+
         user.save()
-        
+
         serializer = UserSerializer(user)
         return serializer.data
 
     @staticmethod
-    def change_user_password(user, schema: UserPasswordChangeSchema):
+    def change_user_password(user, data: dict):
         """
         Change user password.
-        
+
         Args:
             user: User instance
-            schema: UserPasswordChangeSchema with password data
-            
+            data: validated_data dict from UserPasswordChangeSerializer
+
         Returns:
             dict: Success message
-            
-        Raises:
-            ValueError: If old password is incorrect
         """
-        if not user.check_password(schema.old_password):
-            raise ValueError("Old password is incorrect.")
-        
-        user.set_password(schema.new_password)
+        user.set_password(data['new_password'])
         user.save()
-        
+
         return {'message': 'Password changed successfully.'}

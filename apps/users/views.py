@@ -4,18 +4,16 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework_simplejwt.views import TokenRefreshView
 from drf_spectacular.utils import extend_schema, OpenApiExample
 from .services import UserService
-from .schemas import (
-    UserRegistrationSchema,
-    UserLoginSchema,
-    UserLogoutSchema,
-    UserProfileUpdateSchema,
-    UserPasswordChangeSchema,
-    UserRegistrationResponse,
-    UserLoginResponse,
-    MessageResponse,
-    ErrorResponse,
-    UserResponse,
+from .serializers import (
+    UserRegistrationSerializer,
+    UserLoginSerializer,
+    UserLogoutSerializer,
+    UserProfileSerializer,
+    UserPasswordChangeSerializer,
+    UserSerializer,
+    UserAuthResponseSerializer,
 )
+from apps.common_serializers import MessageSerializer, ErrorSerializer
 from .exceptions import InvalidCredentialsException, UserAlreadyExistsException
 
 
@@ -26,10 +24,10 @@ class UserRegistrationView(generics.GenericAPIView):
     permission_classes = [AllowAny]
 
     @extend_schema(
-        request=UserRegistrationSchema,
+        request=UserRegistrationSerializer,
         responses={
-            201: UserRegistrationResponse,
-            400: ErrorResponse,
+            201: UserAuthResponseSerializer,
+            400: ErrorSerializer,
         },
         examples=[
             OpenApiExample(
@@ -46,9 +44,10 @@ class UserRegistrationView(generics.GenericAPIView):
         ]
     )
     def post(self, request, *args, **kwargs):
+        serializer = UserRegistrationSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
         try:
-            schema = UserRegistrationSchema(**request.data)
-            result = UserService.register_user(schema)
+            result = UserService.register_user(serializer.validated_data)
             return Response(result, status=status.HTTP_201_CREATED)
         except UserAlreadyExistsException:
             raise
@@ -63,11 +62,11 @@ class UserLoginView(generics.GenericAPIView):
     permission_classes = [AllowAny]
 
     @extend_schema(
-        request=UserLoginSchema,
+        request=UserLoginSerializer,
         responses={
-            200: UserLoginResponse,
-            400: ErrorResponse,
-            401: ErrorResponse,
+            200: UserAuthResponseSerializer,
+            400: ErrorSerializer,
+            401: ErrorSerializer,
         },
         examples=[
             OpenApiExample(
@@ -80,9 +79,10 @@ class UserLoginView(generics.GenericAPIView):
         ]
     )
     def post(self, request, *args, **kwargs):
+        serializer = UserLoginSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
         try:
-            schema = UserLoginSchema(**request.data)
-            result = UserService.login_user(schema)
+            result = UserService.login_user(serializer.validated_data)
             return Response(result, status=status.HTTP_200_OK)
         except InvalidCredentialsException:
             raise
@@ -97,10 +97,10 @@ class UserLogoutView(generics.GenericAPIView):
     permission_classes = [IsAuthenticated]
 
     @extend_schema(
-        request=UserLogoutSchema,
+        request=UserLogoutSerializer,
         responses={
-            200: MessageResponse,
-            400: ErrorResponse,
+            200: MessageSerializer,
+            400: ErrorSerializer,
         },
         examples=[
             OpenApiExample(
@@ -110,15 +110,12 @@ class UserLogoutView(generics.GenericAPIView):
         ]
     )
     def post(self, request, *args, **kwargs):
-        try:
-            schema = UserLogoutSchema(**request.data)
-            result = UserService.logout_user(schema)
-            
-            if 'error' in result:
-                return Response(result, status=status.HTTP_400_BAD_REQUEST)
-            return Response(result, status=status.HTTP_200_OK)
-        except ValueError as e:
-            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        serializer = UserLogoutSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        result = UserService.logout_user(serializer.validated_data)
+        if 'error' in result:
+            return Response(result, status=status.HTTP_400_BAD_REQUEST)
+        return Response(result, status=status.HTTP_200_OK)
 
 
 class CustomTokenRefreshView(TokenRefreshView):
@@ -137,7 +134,7 @@ class UserProfileView(generics.RetrieveUpdateAPIView):
 
     @extend_schema(
         responses={
-            200: UserResponse,
+            200: UserSerializer,
         }
     )
     def get(self, request, *args, **kwargs):
@@ -145,31 +142,32 @@ class UserProfileView(generics.RetrieveUpdateAPIView):
         return Response(user_data, status=status.HTTP_200_OK)
 
     @extend_schema(
-        request=UserProfileUpdateSchema,
+        request=UserProfileSerializer,
         responses={
-            200: UserResponse,
-            400: ErrorResponse,
+            200: UserSerializer,
+            400: ErrorSerializer,
         }
     )
     def put(self, request, *args, **kwargs):
         return self.update(request, *args, **kwargs)
 
     @extend_schema(
-        request=UserProfileUpdateSchema,
+        request=UserProfileSerializer,
         responses={
-            200: UserResponse,
-            400: ErrorResponse,
+            200: UserSerializer,
+            400: ErrorSerializer,
         }
     )
     def patch(self, request, *args, **kwargs):
         return self.update(request, *args, **kwargs)
 
     def update(self, request, *args, **kwargs):
+        serializer = UserProfileSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
         try:
-            schema = UserProfileUpdateSchema(**request.data)
             user_data = UserService.update_user_profile(
                 user=request.user,
-                schema=schema
+                data=serializer.validated_data
             )
             return Response(user_data, status=status.HTTP_200_OK)
         except ValueError as e:
@@ -183,10 +181,10 @@ class UserPasswordChangeView(generics.GenericAPIView):
     permission_classes = [IsAuthenticated]
 
     @extend_schema(
-        request=UserPasswordChangeSchema,
+        request=UserPasswordChangeSerializer,
         responses={
-            200: MessageResponse,
-            400: ErrorResponse,
+            200: MessageSerializer,
+            400: ErrorSerializer,
         },
         examples=[
             OpenApiExample(
@@ -200,11 +198,15 @@ class UserPasswordChangeView(generics.GenericAPIView):
         ]
     )
     def post(self, request, *args, **kwargs):
+        serializer = UserPasswordChangeSerializer(
+            data=request.data,
+            context={'request': request}
+        )
+        serializer.is_valid(raise_exception=True)
         try:
-            schema = UserPasswordChangeSchema(**request.data)
             result = UserService.change_user_password(
                 user=request.user,
-                schema=schema
+                data=serializer.validated_data
             )
             return Response(result, status=status.HTTP_200_OK)
         except ValueError as e:
