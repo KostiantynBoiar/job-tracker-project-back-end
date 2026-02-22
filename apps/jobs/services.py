@@ -6,6 +6,8 @@ from .exceptions import (
     SavedJobNotFoundException,
     SavedJobAlreadyExistsException,
 )
+from django.db.models import F
+
 
 
 class JobService:
@@ -30,8 +32,10 @@ class JobService:
         if Job.objects.filter(external_id=data['external_id']).exists():
             raise JobAlreadyExistsException()
 
-        optional_fields = ['description', 'location', 'salary_min', 'salary_max',
-                           'experience_level', 'is_remote', 'posted_at']
+        optional_fields = [
+            'description', 'requirements', 'employment_type', 'experience_level',
+            'salary_min', 'salary_max', 'salary_currency', 'is_remote', 'posted_at',
+        ]
         job_data = {
             'company': data['company'],
             'external_id': data['external_id'],
@@ -39,6 +43,11 @@ class JobService:
             'external_url': data['external_url'],
             **{k: data[k] for k in optional_fields if data.get(k) is not None},
         }
+        # FK fields resolved by PrimaryKeyRelatedField
+        if data.get('location') is not None:
+            job_data['location'] = data['location']
+        if data.get('category') is not None:
+            job_data['category'] = data['category']
 
         job = Job.objects.create(**job_data)
 
@@ -67,17 +76,42 @@ class JobService:
         serializer = JobSerializer(job)
         return serializer.data
 
+    _SORT_FIELDS = {
+        'date':    'posted_at',
+        'salary':  'salary_max',
+        'company': 'company__name',
+    }
+
     @staticmethod
-    def list_jobs():
+    def list_jobs(sort_by: str = 'date', order: str = 'desc', user=None):
         """
-        List all jobs.
+        List all jobs with optional sorting.
+
+        Args:
+            sort_by: 'preference' | 'date' | 'salary' | 'company'
+            order:   'asc' | 'desc'
+            user:    required when sort_by='preference'
 
         Returns:
             list: List of job data dictionaries
         """
-        jobs = Job.objects.select_related('company').all()
-        serializer = JobSerializer(jobs, many=True)
-        return serializer.data
+        if sort_by == 'preference' and user is not None:
+            from apps.preferences.services import RecommendationService
+            jobs = RecommendationService.get_recommended_jobs(user)
+            return JobSerializer(jobs, many=True).data
+
+        qs = Job.objects.select_related('company', 'location', 'category').all()
+
+        field = JobService._SORT_FIELDS.get(sort_by, 'posted_at')
+        prefix = '' if order == 'asc' else '-'
+        if sort_by == 'salary':
+            null_last = F(field).asc(nulls_last=True) if order == 'asc' \
+                else F(field).desc(nulls_last=True)
+            qs = qs.order_by(null_last)
+        else:
+            qs = qs.order_by(f'{prefix}{field}')
+
+        return JobSerializer(qs, many=True).data
 
     @staticmethod
     def update_job(job_id: int, data: dict):
@@ -99,11 +133,19 @@ class JobService:
         except Job.DoesNotExist:
             raise JobNotFoundException()
 
-        updatable_fields = ['title', 'description', 'location', 'salary_min', 'salary_max',
-                            'external_url', 'experience_level', 'is_remote', 'posted_at']
+        updatable_fields = [
+            'title', 'description', 'requirements', 'employment_type', 'experience_level',
+            'salary_min', 'salary_max', 'salary_currency', 'external_url',
+            'is_remote', 'is_active', 'posted_at',
+        ]
         for field in updatable_fields:
             if data.get(field) is not None:
                 setattr(job, field, data[field])
+        # FK fields
+        if 'location' in data:
+            job.location = data['location']
+        if 'category' in data:
+            job.category = data['category']
 
         job.save()
 

@@ -50,6 +50,7 @@ INSTALLED_APPS = [
     # Local apps
     'apps.users',
     'apps.jobs',
+    'apps.preferences',
 ]
 
 MIDDLEWARE = [
@@ -169,6 +170,22 @@ SIMPLE_JWT = {
     'USER_ID_CLAIM': 'user_id',
     'AUTH_TOKEN_CLASSES': ('rest_framework_simplejwt.tokens.AccessToken',),
     'TOKEN_TYPE_CLAIM': 'token_type',
+}
+
+# Celery
+from celery.schedules import crontab  # noqa: E402
+
+CELERY_BROKER_URL = os.getenv('REDIS_URL', 'redis://redis:6379/0')
+CELERY_RESULT_BACKEND = os.getenv('REDIS_URL', 'redis://redis:6379/0')
+CELERY_BEAT_SCHEDULE = {
+    'send-daily-recaps': {
+        'task': 'apps.preferences.tasks.send_daily_recaps',
+        'schedule': crontab(hour=9, minute=0),
+    },
+    'scrape-all-jobs': {
+        'task': 'apps.jobs.tasks.scrape_all',
+        'schedule': crontab(minute=0, hour='0,6,12,18'),
+    },
 }
 
 # drf-spectacular settings

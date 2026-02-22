@@ -1,7 +1,8 @@
 from rest_framework import status, generics
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
-from drf_spectacular.utils import extend_schema, OpenApiExample
+from drf_spectacular.utils import extend_schema, OpenApiExample, OpenApiParameter
+from drf_spectacular.types import OpenApiTypes
 from .services import JobService, SavedJobService
 from .serializers import (
     JobSerializer,
@@ -70,12 +71,31 @@ class JobListView(generics.GenericAPIView):
     permission_classes = [IsAuthenticated]
 
     @extend_schema(
-        responses={
-            200: JobSerializer(many=True),
-        }
+        parameters=[
+            OpenApiParameter(
+                name='sort_by',
+                type=OpenApiTypes.STR,
+                enum=['preference', 'date', 'salary', 'company'],
+                default='date',
+                description=(
+                    'Sort jobs by: preference (personalised score), '
+                    'date (posted_at), salary (salary_max), or company name.'
+                ),
+            ),
+            OpenApiParameter(
+                name='order',
+                type=OpenApiTypes.STR,
+                enum=['asc', 'desc'],
+                default='desc',
+                description='Sort direction.',
+            ),
+        ],
+        responses={200: JobSerializer(many=True)},
     )
     def get(self, request, *args, **kwargs):
-        jobs = JobService.list_jobs()
+        sort_by = request.query_params.get('sort_by', 'date')
+        order = request.query_params.get('order', 'desc')
+        jobs = JobService.list_jobs(sort_by=sort_by, order=order, user=request.user)
         return Response(jobs, status=status.HTTP_200_OK)
 
 
