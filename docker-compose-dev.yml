@@ -5,16 +5,18 @@ services:
     image: postgres:15-alpine
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    env_file:
+      - .env
     environment:
-      POSTGRES_DB: job_tracker_db
-      POSTGRES_USER: user
-      POSTGRES_PASSWORD: password
+      POSTGRES_DB: ${DB_NAME:-job_tracker_db}
+      POSTGRES_USER: ${DB_USER:-user}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-password}
     ports:
-      - "5432:5432"
+      - "${DB_PORT:-5432}:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U user"]
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-user} -d ${DB_NAME:-job_tracker_db}"]
       interval: 10s
-      timeout: 5s
+      timeout: 10s
       retries: 5
 
   redis:
@@ -24,21 +26,45 @@ services:
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
-      timeout: 5s
+      timeout: 10s
       retries: 5
 
   api:
     build: .
-    command: python manage.py runserver 0.0.0.0:8000
+    command: sh -c "until pg_isready -h ${DB_HOST:-db} -U ${DB_USER:-user} -d ${DB_NAME:-job_tracker_db}; do sleep 1; done && python manage.py migrate && python manage.py seed_companies && python manage.py runserver 0.0.0.0:8000"
     volumes:
       - .:/app
     ports:
       - "8000:8000"
     env_file:
       - .env
-    environment:
-      - DATABASE_URL=postgresql://user:password@db:5432/job_tracker_db
-      - REDIS_URL=redis://redis:6379/0
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      
+
+  celery-worker:
+    build: .
+    command: celery -A config worker --loglevel=info
+    volumes:
+      - .:/app
+    env_file:
+      - .env
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  celery-beat:
+    build: .
+    command: celery -A config beat --loglevel=info
+    volumes:
+      - .:/app
+    env_file:
+      - .env
     depends_on:
       db:
         condition: service_healthy
