@@ -54,3 +54,5 @@ htmlcov
 # Documentation
 README.md
 *.md
+
+ssl/*

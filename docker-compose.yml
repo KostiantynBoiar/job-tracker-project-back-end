@@ -41,8 +41,12 @@ services:
     env_file:
       - .env
     depends_on:
-      - db
-      - redis
+      api:
+        condition: service_started
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     restart: unless-stopped
     networks:
       - app-network
@@ -55,8 +59,12 @@ services:
     env_file:
       - .env
     depends_on:
-      - db
-      - redis
+      api:
+        condition: service_started
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     restart: unless-stopped
     networks:
       - app-network
