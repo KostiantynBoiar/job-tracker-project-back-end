@@ -19,5 +19,3 @@ RUN pip install --no-cache-dir --upgrade pip && \
 COPY . .
 
 EXPOSE 8000
-
-CMD ["sh", "-c", "until pg_isready -h db -U user; do sleep 1; done && python manage.py migrate && python manage.py runserver 0.0.0.0:8000"]
