@@ -55,4 +55,4 @@ htmlcov
 README.md
 *.md
 
-ssl/*
+nginx/ssl/
