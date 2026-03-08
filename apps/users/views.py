@@ -1,8 +1,14 @@
+from urllib.parse import urlencode
+
+from django.conf import settings
+from django.shortcuts import redirect
 from rest_framework import status, generics
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.views import APIView
 from rest_framework_simplejwt.views import TokenRefreshView
 from drf_spectacular.utils import extend_schema, OpenApiExample
+
 from .services import UserService
 from .serializers import (
     UserRegistrationSerializer,
@@ -12,23 +18,18 @@ from .serializers import (
     UserPasswordChangeSerializer,
     UserSerializer,
     UserAuthResponseSerializer,
+    OAuthURLSerializer,
 )
 from apps.common_serializers import MessageSerializer, ErrorSerializer
 from .exceptions import InvalidCredentialsException, UserAlreadyExistsException
 
 
 class UserRegistrationView(generics.GenericAPIView):
-    """
-    Register a new user and return JWT tokens.
-    """
     permission_classes = [AllowAny]
 
     @extend_schema(
         request=UserRegistrationSerializer,
-        responses={
-            201: UserAuthResponseSerializer,
-            400: ErrorSerializer,
-        },
+        responses={201: UserAuthResponseSerializer, 400: ErrorSerializer},
         examples=[
             OpenApiExample(
                 'Registration Request',
@@ -51,30 +52,18 @@ class UserRegistrationView(generics.GenericAPIView):
             return Response(result, status=status.HTTP_201_CREATED)
         except UserAlreadyExistsException:
             raise
-        except ValueError as e:
-            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
 
 class UserLoginView(generics.GenericAPIView):
-    """
-    Authenticate user and return JWT tokens.
-    """
     permission_classes = [AllowAny]
 
     @extend_schema(
         request=UserLoginSerializer,
-        responses={
-            200: UserAuthResponseSerializer,
-            400: ErrorSerializer,
-            401: ErrorSerializer,
-        },
+        responses={200: UserAuthResponseSerializer, 401: ErrorSerializer},
         examples=[
             OpenApiExample(
                 'Login Request',
-                value={
-                    'email': 'user@example.com',
-                    'password': 'securepassword123'
-                }
+                value={'email': 'user@example.com', 'password': 'securepassword123'}
             )
         ]
     )
@@ -86,28 +75,15 @@ class UserLoginView(generics.GenericAPIView):
             return Response(result, status=status.HTTP_200_OK)
         except InvalidCredentialsException:
             raise
-        except ValueError as e:
-            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
 
 class UserLogoutView(generics.GenericAPIView):
-    """
-    Logout user by blacklisting refresh token.
-    """
     permission_classes = [IsAuthenticated]
 
     @extend_schema(
         request=UserLogoutSerializer,
-        responses={
-            200: MessageSerializer,
-            400: ErrorSerializer,
-        },
-        examples=[
-            OpenApiExample(
-                'Logout Request',
-                value={'refresh': 'your_refresh_token_here'}
-            )
-        ]
+        responses={200: MessageSerializer, 400: ErrorSerializer},
+        examples=[OpenApiExample('Logout Request', value={'refresh': 'your_refresh_token_here'})]
     )
     def post(self, request, *args, **kwargs):
         serializer = UserLogoutSerializer(data=request.data)
@@ -119,73 +95,37 @@ class UserLogoutView(generics.GenericAPIView):
 
 
 class CustomTokenRefreshView(TokenRefreshView):
-    """
-    POST /api/users/token/refresh/
-    Refresh access token using refresh token.
-    """
     pass
 
 
 class UserProfileView(generics.RetrieveUpdateAPIView):
-    """
-    Get or update current user profile.
-    """
     permission_classes = [IsAuthenticated]
 
-    @extend_schema(
-        responses={
-            200: UserSerializer,
-        }
-    )
+    @extend_schema(responses={200: UserSerializer})
     def get(self, request, *args, **kwargs):
-        user_data = UserService.get_user_profile(request.user)
-        return Response(user_data, status=status.HTTP_200_OK)
+        return Response(UserService.get_user_profile(request.user), status=status.HTTP_200_OK)
 
-    @extend_schema(
-        request=UserProfileSerializer,
-        responses={
-            200: UserSerializer,
-            400: ErrorSerializer,
-        }
-    )
+    @extend_schema(request=UserProfileSerializer, responses={200: UserSerializer, 400: ErrorSerializer})
     def put(self, request, *args, **kwargs):
-        return self.update(request, *args, **kwargs)
+        return self._update(request)
 
-    @extend_schema(
-        request=UserProfileSerializer,
-        responses={
-            200: UserSerializer,
-            400: ErrorSerializer,
-        }
-    )
+    @extend_schema(request=UserProfileSerializer, responses={200: UserSerializer, 400: ErrorSerializer})
     def patch(self, request, *args, **kwargs):
-        return self.update(request, *args, **kwargs)
+        return self._update(request)
 
-    def update(self, request, *args, **kwargs):
+    def _update(self, request):
         serializer = UserProfileSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        try:
-            user_data = UserService.update_user_profile(
-                user=request.user,
-                data=serializer.validated_data
-            )
-            return Response(user_data, status=status.HTTP_200_OK)
-        except ValueError as e:
-            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        user_data = UserService.update_user_profile(request.user, serializer.validated_data)
+        return Response(user_data, status=status.HTTP_200_OK)
 
 
 class UserPasswordChangeView(generics.GenericAPIView):
-    """
-    Change user password.
-    """
     permission_classes = [IsAuthenticated]
 
     @extend_schema(
         request=UserPasswordChangeSerializer,
-        responses={
-            200: MessageSerializer,
-            400: ErrorSerializer,
-        },
+        responses={200: MessageSerializer, 400: ErrorSerializer},
         examples=[
             OpenApiExample(
                 'Password Change Request',
@@ -198,16 +138,101 @@ class UserPasswordChangeView(generics.GenericAPIView):
         ]
     )
     def post(self, request, *args, **kwargs):
-        serializer = UserPasswordChangeSerializer(
-            data=request.data,
-            context={'request': request}
-        )
+        serializer = UserPasswordChangeSerializer(data=request.data, context={'request': request})
         serializer.is_valid(raise_exception=True)
+        result = UserService.change_user_password(request.user, serializer.validated_data)
+        return Response(result, status=status.HTTP_200_OK)
+
+
+class GoogleLoginView(APIView):
+    permission_classes = [AllowAny]
+
+    @extend_schema(responses={200: OAuthURLSerializer})
+    def get(self, request, *args, **kwargs):
+        callback_url = request.build_absolute_uri('/api/users/oauth/google/callback/')
+        google_settings = settings.SOCIALACCOUNT_PROVIDERS.get('google', {})
+        client_id = google_settings.get('APP', {}).get('client_id', '')
+
+        if not client_id:
+            return Response({'error': 'Google OAuth is not configured'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+        params = {
+            'client_id': client_id,
+            'redirect_uri': callback_url,
+            'scope': 'openid email profile',
+            'response_type': 'code',
+            'access_type': 'online',
+        }
+        auth_url = f"https://accounts.google.com/o/oauth2/v2/auth?{urlencode(params)}"
+        return Response({'authorization_url': auth_url})
+
+
+class GitHubLoginView(APIView):
+    permission_classes = [AllowAny]
+
+    @extend_schema(responses={200: OAuthURLSerializer})
+    def get(self, request, *args, **kwargs):
+        callback_url = request.build_absolute_uri('/api/users/oauth/github/callback/')
+        github_settings = settings.SOCIALACCOUNT_PROVIDERS.get('github', {})
+        client_id = github_settings.get('APP', {}).get('client_id', '')
+
+        if not client_id:
+            return Response({'error': 'GitHub OAuth is not configured'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+        params = {
+            'client_id': client_id,
+            'redirect_uri': callback_url,
+            'scope': 'user:email read:user',
+        }
+        auth_url = f"https://github.com/login/oauth/authorize?{urlencode(params)}"
+        return Response({'authorization_url': auth_url})
+
+
+class GoogleCallbackView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request, *args, **kwargs):
+        code = request.query_params.get('code')
+        error = request.query_params.get('error')
+        frontend_url = settings.FRONTEND_URL
+
+        if error:
+            return redirect(f"{frontend_url}/auth/callback?error={error}")
+
+        if not code:
+            return redirect(f"{frontend_url}/auth/callback?error=no_code")
+
         try:
-            result = UserService.change_user_password(
-                user=request.user,
-                data=serializer.validated_data
-            )
-            return Response(result, status=status.HTTP_200_OK)
-        except ValueError as e:
-            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+            result = UserService.oauth_google_callback(request, code)
+            params = urlencode({
+                'access': result['tokens']['access'],
+                'refresh': result['tokens']['refresh'],
+            })
+            return redirect(f"{frontend_url}/auth/callback?{params}")
+        except Exception as e:
+            return redirect(f"{frontend_url}/auth/callback?error={str(e)}")
+
+
+class GitHubCallbackView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request, *args, **kwargs):
+        code = request.query_params.get('code')
+        error = request.query_params.get('error')
+        frontend_url = settings.FRONTEND_URL
+
+        if error:
+            return redirect(f"{frontend_url}/auth/callback?error={error}")
+
+        if not code:
+            return redirect(f"{frontend_url}/auth/callback?error=no_code")
+
+        try:
+            result = UserService.oauth_github_callback(request, code)
+            params = urlencode({
+                'access': result['tokens']['access'],
+                'refresh': result['tokens']['refresh'],
+            })
+            return redirect(f"{frontend_url}/auth/callback?{params}")
+        except Exception as e:
+            return redirect(f"{frontend_url}/auth/callback?error={str(e)}")

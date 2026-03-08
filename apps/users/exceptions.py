@@ -12,3 +12,9 @@ class UserAlreadyExistsException(APIException):
     status_code = status.HTTP_400_BAD_REQUEST
     default_detail = 'User with this email already exists.'
     default_code = 'user_exists'
+
+
+class OAuthException(APIException):
+    status_code = status.HTTP_400_BAD_REQUEST
+    default_detail = 'OAuth authentication failed.'
+    default_code = 'oauth_error'
