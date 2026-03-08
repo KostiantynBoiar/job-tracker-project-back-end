@@ -44,7 +44,7 @@ class UserPreference(models.Model):
     )
     preferred_send_time = models.TimeField(default='09:00:00')
     preferred_companies = models.ManyToManyField(
-        'jobs.Company',
+        'companies.Company',
         blank=True,
         related_name='preferred_by_users',
     )

@@ -1,16 +1,7 @@
 from rest_framework import serializers
-from .models import Company, Location, JobCategory, Job, SavedJob
-
-
-class CompanySerializer(serializers.ModelSerializer):
-    """
-    Serializer for company data representation.
-    """
-    class Meta:
-        model = Company
-        fields = ['id', 'name', 'logo_url', 'careers_url', 'is_active',
-                  'created_at', 'updated_at']
-        read_only_fields = ['id', 'created_at', 'updated_at']
+from .models import Location, JobCategory, Job, SavedJob
+from apps.companies.models import Company
+from apps.companies.serializers import CompanySerializer
 
 
 class LocationSerializer(serializers.ModelSerializer):

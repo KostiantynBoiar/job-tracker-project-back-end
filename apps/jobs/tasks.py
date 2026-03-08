@@ -5,7 +5,8 @@ from celery import shared_task
 from django.utils.timezone import now
 
 from scrapers.factory import ScraperFactory
-from apps.jobs.models import Company, Job, Location, ScrapeLog, ScrapeLogStatus
+from apps.companies.models import Company
+from apps.jobs.models import Job, Location, ScrapeLog, ScrapeLogStatus
 
 logger = logging.getLogger(__name__)
 

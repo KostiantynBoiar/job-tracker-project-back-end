@@ -1,6 +1,8 @@
 from rest_framework import serializers
-from apps.jobs.models import Company, Location, JobCategory
-from apps.jobs.serializers import CompanySerializer, LocationSerializer, JobCategorySerializer, JobSerializer
+from apps.companies.models import Company
+from apps.companies.serializers import CompanySerializer
+from apps.jobs.models import Location, JobCategory
+from apps.jobs.serializers import LocationSerializer, JobCategorySerializer, JobSerializer
 from .models import UserPreference, UserKeyword, DailyRecap, RecapJob
 
 

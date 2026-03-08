@@ -1,6 +1,6 @@
 from django.core.management.base import BaseCommand
 
-from apps.jobs.models import Company
+from apps.companies.models import Company
 
 _COMPANIES = [
     {

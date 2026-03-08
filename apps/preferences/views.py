@@ -3,7 +3,8 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from drf_spectacular.utils import extend_schema, OpenApiParameter
 from drf_spectacular.types import OpenApiTypes
-from apps.jobs.serializers import CompanySerializer, LocationSerializer, JobCategorySerializer, JobSerializer
+from apps.companies.serializers import CompanySerializer
+from apps.jobs.serializers import LocationSerializer, JobCategorySerializer, JobSerializer
 from apps.common_serializers import MessageSerializer, ErrorSerializer
 from apps.common_pagination import StandardPagination
 from .models import UserKeyword, DailyRecap
