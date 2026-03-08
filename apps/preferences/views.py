@@ -1,9 +1,11 @@
 from rest_framework import status, generics
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
-from drf_spectacular.utils import extend_schema
+from drf_spectacular.utils import extend_schema, OpenApiParameter
+from drf_spectacular.types import OpenApiTypes
 from apps.jobs.serializers import CompanySerializer, LocationSerializer, JobCategorySerializer, JobSerializer
 from apps.common_serializers import MessageSerializer, ErrorSerializer
+from apps.common_pagination import StandardPagination
 from .models import UserKeyword
 from .serializers import (
     UserPreferenceSerializer,
@@ -44,28 +46,72 @@ class UserPreferenceView(generics.GenericAPIView):
         return Response(UserPreferenceSerializer(pref).data)
 
 
-class RecommendedJobsView(generics.GenericAPIView):
+class RecommendedJobsView(generics.ListAPIView):
     """
-    Returns a scored list of recommended jobs for the current user.
+    Returns a scored list of recommended jobs for the current user with pagination.
     """
     permission_classes = [IsAuthenticated]
+    serializer_class = JobSerializer
+    pagination_class = StandardPagination
 
-    @extend_schema(responses={200: JobSerializer(many=True)})
-    def get(self, request):
-        limit = min(int(request.query_params.get('limit', 20)), 100)
-        jobs = RecommendationService.get_recommended_jobs(request.user, limit=limit)
-        return Response(JobSerializer(jobs, many=True).data)
+    @extend_schema(
+        parameters=[
+            OpenApiParameter(
+                name='page',
+                type=OpenApiTypes.INT,
+                description='Page number (default: 1)',
+            ),
+            OpenApiParameter(
+                name='page_size',
+                type=OpenApiTypes.INT,
+                description='Number of items per page (default: 20, max: 100)',
+            ),
+        ],
+    )
+    def get(self, request, *args, **kwargs):
+        return super().get(request, *args, **kwargs)
+
+    def get_queryset(self):
+        return RecommendationService.get_recommended_jobs_queryset(self.request.user)
 
 
 # --- Preferred Companies ---
 
-class PreferredCompanyView(generics.GenericAPIView):
+class PreferredCompanyListView(generics.ListAPIView):
+    """
+    List all preferred companies for the current user with pagination.
+    """
     permission_classes = [IsAuthenticated]
+    serializer_class = CompanySerializer
+    pagination_class = StandardPagination
 
-    @extend_schema(responses={200: CompanySerializer(many=True)})
-    def get(self, request):
-        pref = PreferenceService.get_or_create(request.user)
-        return Response(CompanySerializer(pref.preferred_companies.all(), many=True).data)
+    @extend_schema(
+        parameters=[
+            OpenApiParameter(
+                name='page',
+                type=OpenApiTypes.INT,
+                description='Page number (default: 1)',
+            ),
+            OpenApiParameter(
+                name='page_size',
+                type=OpenApiTypes.INT,
+                description='Number of items per page (default: 20, max: 100)',
+            ),
+        ],
+    )
+    def get(self, request, *args, **kwargs):
+        return super().get(request, *args, **kwargs)
+
+    def get_queryset(self):
+        pref = PreferenceService.get_or_create(self.request.user)
+        return pref.preferred_companies.all()
+
+
+class PreferredCompanyCreateView(generics.GenericAPIView):
+    """
+    Add a company to preferences.
+    """
+    permission_classes = [IsAuthenticated]
 
     @extend_schema(
         request=AddPreferredCompanySerializer,
@@ -95,13 +141,41 @@ class PreferredCompanyDeleteView(generics.GenericAPIView):
 
 # --- Preferred Categories ---
 
-class PreferredCategoryView(generics.GenericAPIView):
+class PreferredCategoryListView(generics.ListAPIView):
+    """
+    List all preferred categories for the current user with pagination.
+    """
     permission_classes = [IsAuthenticated]
+    serializer_class = JobCategorySerializer
+    pagination_class = StandardPagination
 
-    @extend_schema(responses={200: JobCategorySerializer(many=True)})
-    def get(self, request):
-        pref = PreferenceService.get_or_create(request.user)
-        return Response(JobCategorySerializer(pref.preferred_categories.all(), many=True).data)
+    @extend_schema(
+        parameters=[
+            OpenApiParameter(
+                name='page',
+                type=OpenApiTypes.INT,
+                description='Page number (default: 1)',
+            ),
+            OpenApiParameter(
+                name='page_size',
+                type=OpenApiTypes.INT,
+                description='Number of items per page (default: 20, max: 100)',
+            ),
+        ],
+    )
+    def get(self, request, *args, **kwargs):
+        return super().get(request, *args, **kwargs)
+
+    def get_queryset(self):
+        pref = PreferenceService.get_or_create(self.request.user)
+        return pref.preferred_categories.all()
+
+
+class PreferredCategoryCreateView(generics.GenericAPIView):
+    """
+    Add a category to preferences.
+    """
+    permission_classes = [IsAuthenticated]
 
     @extend_schema(
         request=AddPreferredCategorySerializer,
@@ -131,13 +205,41 @@ class PreferredCategoryDeleteView(generics.GenericAPIView):
 
 # --- Preferred Locations ---
 
-class PreferredLocationView(generics.GenericAPIView):
+class PreferredLocationListView(generics.ListAPIView):
+    """
+    List all preferred locations for the current user with pagination.
+    """
     permission_classes = [IsAuthenticated]
+    serializer_class = LocationSerializer
+    pagination_class = StandardPagination
 
-    @extend_schema(responses={200: LocationSerializer(many=True)})
-    def get(self, request):
-        pref = PreferenceService.get_or_create(request.user)
-        return Response(LocationSerializer(pref.preferred_locations.all(), many=True).data)
+    @extend_schema(
+        parameters=[
+            OpenApiParameter(
+                name='page',
+                type=OpenApiTypes.INT,
+                description='Page number (default: 1)',
+            ),
+            OpenApiParameter(
+                name='page_size',
+                type=OpenApiTypes.INT,
+                description='Number of items per page (default: 20, max: 100)',
+            ),
+        ],
+    )
+    def get(self, request, *args, **kwargs):
+        return super().get(request, *args, **kwargs)
+
+    def get_queryset(self):
+        pref = PreferenceService.get_or_create(self.request.user)
+        return pref.preferred_locations.all()
+
+
+class PreferredLocationCreateView(generics.GenericAPIView):
+    """
+    Add a location to preferences.
+    """
+    permission_classes = [IsAuthenticated]
 
     @extend_schema(
         request=AddPreferredLocationSerializer,
@@ -167,13 +269,40 @@ class PreferredLocationDeleteView(generics.GenericAPIView):
 
 # --- Keywords ---
 
-class KeywordView(generics.GenericAPIView):
+class KeywordListView(generics.ListAPIView):
+    """
+    List all keywords for the current user with pagination.
+    """
     permission_classes = [IsAuthenticated]
+    serializer_class = UserKeywordSerializer
+    pagination_class = StandardPagination
 
-    @extend_schema(responses={200: UserKeywordSerializer(many=True)})
-    def get(self, request):
-        keywords = UserKeyword.objects.filter(user=request.user)
-        return Response(UserKeywordSerializer(keywords, many=True).data)
+    @extend_schema(
+        parameters=[
+            OpenApiParameter(
+                name='page',
+                type=OpenApiTypes.INT,
+                description='Page number (default: 1)',
+            ),
+            OpenApiParameter(
+                name='page_size',
+                type=OpenApiTypes.INT,
+                description='Number of items per page (default: 20, max: 100)',
+            ),
+        ],
+    )
+    def get(self, request, *args, **kwargs):
+        return super().get(request, *args, **kwargs)
+
+    def get_queryset(self):
+        return UserKeyword.objects.filter(user=self.request.user)
+
+
+class KeywordCreateView(generics.GenericAPIView):
+    """
+    Add a keyword to preferences.
+    """
+    permission_classes = [IsAuthenticated]
 
     @extend_schema(
         request=AddKeywordSerializer,

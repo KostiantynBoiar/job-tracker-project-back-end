@@ -2,7 +2,7 @@ from django.db import models as db_models
 from apps.jobs.models import Job
 from .models import UserPreference, UserKeyword, DailyRecap, RecapJob
 from .exceptions import PreferenceNotFoundException, PreferenceAlreadyExistsException
-
+from django.db.models import Case, When
 
 class PreferenceService:
 
@@ -97,6 +97,15 @@ class RecommendationService:
 
     @staticmethod
     def get_recommended_jobs(user, limit: int = 20) -> list:
+        """Returns a list of recommended jobs (limited)."""
+        return list(RecommendationService.get_recommended_jobs_queryset(user)[:limit])
+
+    @staticmethod
+    def get_recommended_jobs_queryset(user):
+        """
+        Returns a queryset of recommended jobs sorted by score.
+        Used for pagination in views.
+        """
         qs = Job.objects.filter(is_active=True).select_related(
             'company', 'location', 'category'
         )
@@ -105,7 +114,7 @@ class RecommendationService:
             prefs = user.preference
         except UserPreference.DoesNotExist:
             # No preferences set — return latest jobs
-            return list(qs.order_by('-posted_at')[:limit])
+            return qs.order_by('-posted_at')
 
         # Hard filters
         if prefs.remote_only:
@@ -132,6 +141,10 @@ class RecommendationService:
         )
         keywords = list(prefs.keywords.values_list('keyword', flat=True))
 
+        # If no preferences are set, return by date
+        if not any([preferred_company_ids, preferred_category_ids, preferred_location_ids, keywords]):
+            return qs.order_by('-posted_at')
+
         scored = []
         for job in qs:
             score = RecommendationService._score(
@@ -144,7 +157,16 @@ class RecommendationService:
             -x[0],
             -(x[1].posted_at.timestamp() if x[1].posted_at else 0),
         ))
-        return [job for _, job in scored[:limit]]
+        
+        # Return a list that can be sliced by pagination
+        # We preserve the order by returning job IDs in scored order
+        job_ids = [job.id for _, job in scored]
+        
+
+        preserved_order = Case(*[When(pk=pk, then=pos) for pos, pk in enumerate(job_ids)])
+        return Job.objects.filter(pk__in=job_ids).select_related(
+            'company', 'location', 'category'
+        ).order_by(preserved_order)
 
     @staticmethod
     def _score(job, company_ids, category_ids, location_ids, keywords) -> int:

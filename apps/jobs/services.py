@@ -83,9 +83,9 @@ class JobService:
     }
 
     @staticmethod
-    def list_jobs(sort_by: str = 'date', order: str = 'desc', user=None):
+    def get_jobs_queryset(sort_by: str = 'date', order: str = 'desc', user=None):
         """
-        List all jobs with optional sorting.
+        Get jobs queryset with optional sorting.
 
         Args:
             sort_by: 'preference' | 'date' | 'salary' | 'company'
@@ -93,12 +93,11 @@ class JobService:
             user:    required when sort_by='preference'
 
         Returns:
-            list: List of job data dictionaries
+            QuerySet: Jobs queryset (for pagination in view)
         """
         if sort_by == 'preference' and user is not None:
             from apps.preferences.services import RecommendationService
-            jobs = RecommendationService.get_recommended_jobs(user)
-            return JobSerializer(jobs, many=True).data
+            return RecommendationService.get_recommended_jobs_queryset(user)
 
         qs = Job.objects.select_related('company', 'location', 'category').all()
 
@@ -111,7 +110,7 @@ class JobService:
         else:
             qs = qs.order_by(f'{prefix}{field}')
 
-        return JobSerializer(qs, many=True).data
+        return qs
 
     @staticmethod
     def update_job(job_id: int, data: dict):
@@ -229,19 +228,17 @@ class SavedJobService:
         return serializer.data
 
     @staticmethod
-    def list_saved_jobs(user):
+    def get_saved_jobs_queryset(user):
         """
-        List all saved jobs for the authenticated user.
+        Get saved jobs queryset for the authenticated user.
 
         Args:
             user: User instance
 
         Returns:
-            list: List of saved job data dictionaries
+            QuerySet: Saved jobs queryset (for pagination in view)
         """
-        saved_jobs = SavedJob.objects.filter(user=user).select_related('job', 'job__company').all()
-        serializer = SavedJobSerializer(saved_jobs, many=True)
-        return serializer.data
+        return SavedJob.objects.filter(user=user).select_related('job', 'job__company').all()
 
     @staticmethod
     def update_saved_job(user, saved_job_id: int, data: dict):

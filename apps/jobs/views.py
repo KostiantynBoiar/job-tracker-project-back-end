@@ -13,6 +13,7 @@ from .serializers import (
     SavedJobUpdateSerializer,
 )
 from apps.common_serializers import MessageSerializer, ErrorSerializer
+from apps.common_pagination import StandardPagination
 from .exceptions import (
     JobNotFoundException,
     JobAlreadyExistsException,
@@ -64,11 +65,13 @@ class JobCreateView(generics.GenericAPIView):
             return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
 
-class JobListView(generics.GenericAPIView):
+class JobListView(generics.ListAPIView):
     """
-    List all job postings.
+    List all job postings with pagination.
     """
     permission_classes = [IsAuthenticated]
+    serializer_class = JobSerializer
+    pagination_class = StandardPagination
 
     @extend_schema(
         parameters=[
@@ -89,14 +92,25 @@ class JobListView(generics.GenericAPIView):
                 default='desc',
                 description='Sort direction.',
             ),
+            OpenApiParameter(
+                name='page',
+                type=OpenApiTypes.INT,
+                description='Page number (default: 1)',
+            ),
+            OpenApiParameter(
+                name='page_size',
+                type=OpenApiTypes.INT,
+                description='Number of items per page (default: 20, max: 100)',
+            ),
         ],
-        responses={200: JobSerializer(many=True)},
     )
     def get(self, request, *args, **kwargs):
-        sort_by = request.query_params.get('sort_by', 'date')
-        order = request.query_params.get('order', 'desc')
-        jobs = JobService.list_jobs(sort_by=sort_by, order=order, user=request.user)
-        return Response(jobs, status=status.HTTP_200_OK)
+        return super().get(request, *args, **kwargs)
+
+    def get_queryset(self):
+        sort_by = self.request.query_params.get('sort_by', 'date')
+        order = self.request.query_params.get('order', 'desc')
+        return JobService.get_jobs_queryset(sort_by=sort_by, order=order, user=self.request.user)
 
 
 class JobDetailView(generics.GenericAPIView):
@@ -232,20 +246,33 @@ class SavedJobCreateView(generics.GenericAPIView):
             return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
 
-class SavedJobListView(generics.GenericAPIView):
+class SavedJobListView(generics.ListAPIView):
     """
-    List all saved jobs for the authenticated user.
+    List all saved jobs for the authenticated user with pagination.
     """
     permission_classes = [IsAuthenticated]
+    serializer_class = SavedJobSerializer
+    pagination_class = StandardPagination
 
     @extend_schema(
-        responses={
-            200: SavedJobSerializer(many=True),
-        }
+        parameters=[
+            OpenApiParameter(
+                name='page',
+                type=OpenApiTypes.INT,
+                description='Page number (default: 1)',
+            ),
+            OpenApiParameter(
+                name='page_size',
+                type=OpenApiTypes.INT,
+                description='Number of items per page (default: 20, max: 100)',
+            ),
+        ],
     )
     def get(self, request, *args, **kwargs):
-        saved_jobs = SavedJobService.list_saved_jobs(request.user)
-        return Response(saved_jobs, status=status.HTTP_200_OK)
+        return super().get(request, *args, **kwargs)
+
+    def get_queryset(self):
+        return SavedJobService.get_saved_jobs_queryset(self.request.user)
 
 
 class SavedJobDetailView(generics.GenericAPIView):
