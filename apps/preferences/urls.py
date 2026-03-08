@@ -14,11 +14,13 @@ from .views import (
     KeywordListView,
     KeywordCreateView,
     KeywordDeleteView,
+    DailyRecapListView,
 )
 
 urlpatterns = [
     path('', UserPreferenceView.as_view(), name='preference'),
     path('recommended/', RecommendedJobsView.as_view(), name='recommended-jobs'),
+    path('recaps/', DailyRecapListView.as_view(), name='daily-recaps'),
 
     path('companies/', PreferredCompanyListView.as_view(), name='preferred-companies'),
     path('companies/add/', PreferredCompanyCreateView.as_view(), name='preferred-company-add'),

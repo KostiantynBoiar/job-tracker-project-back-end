@@ -71,9 +71,12 @@ class RecapJobSerializer(serializers.ModelSerializer):
 
 
 class DailyRecapSerializer(serializers.ModelSerializer):
-    recap_jobs = RecapJobSerializer(many=True, read_only=True)
+    job_ids = serializers.SerializerMethodField()
 
     class Meta:
         model = DailyRecap
-        fields = ['id', 'jobs_count', 'sent_at', 'status', 'recap_jobs']
-        read_only_fields = ['id', 'jobs_count', 'sent_at', 'status']
+        fields = ['id', 'status', 'job_ids', 'jobs_count', 'sent_at']
+        read_only_fields = ['id', 'status', 'job_ids', 'jobs_count', 'sent_at']
+
+    def get_job_ids(self, obj):
+        return list(obj.recap_jobs.values_list('job_id', flat=True))

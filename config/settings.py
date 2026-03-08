@@ -195,7 +195,7 @@ CELERY_RESULT_BACKEND = os.getenv('REDIS_URL', 'redis://redis:6379/0')
 CELERY_BEAT_SCHEDULE = {
     'send-daily-recaps': {
         'task': 'apps.preferences.tasks.send_daily_recaps',
-        'schedule': crontab(hour=9, minute=0),
+        'schedule': crontab(hour=0, minute=0),  # 12am UTC
     },
     'scrape-all-jobs': {
         'task': 'apps.jobs.tasks.scrape_all',

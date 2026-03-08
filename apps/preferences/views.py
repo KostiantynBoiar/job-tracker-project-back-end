@@ -6,7 +6,7 @@ from drf_spectacular.types import OpenApiTypes
 from apps.jobs.serializers import CompanySerializer, LocationSerializer, JobCategorySerializer, JobSerializer
 from apps.common_serializers import MessageSerializer, ErrorSerializer
 from apps.common_pagination import StandardPagination
-from .models import UserKeyword
+from .models import UserKeyword, DailyRecap
 from .serializers import (
     UserPreferenceSerializer,
     UserPreferenceUpdateSerializer,
@@ -15,6 +15,7 @@ from .serializers import (
     AddPreferredLocationSerializer,
     AddKeywordSerializer,
     UserKeywordSerializer,
+    DailyRecapSerializer,
 )
 from .services import PreferenceService, RecommendationService
 from .exceptions import PreferenceNotFoundException, PreferenceAlreadyExistsException
@@ -329,3 +330,33 @@ class KeywordDeleteView(generics.GenericAPIView):
             return Response({'message': 'Keyword removed.'})
         except PreferenceNotFoundException:
             raise
+
+
+
+class DailyRecapListView(generics.ListAPIView):
+    """
+    List all daily recaps for the current user with pagination.
+    """
+    permission_classes = [IsAuthenticated]
+    serializer_class = DailyRecapSerializer
+    pagination_class = StandardPagination
+
+    @extend_schema(
+        parameters=[
+            OpenApiParameter(
+                name='page',
+                type=OpenApiTypes.INT,
+                description='Page number (default: 1)',
+            ),
+            OpenApiParameter(
+                name='page_size',
+                type=OpenApiTypes.INT,
+                description='Number of items per page (default: 20, max: 100)',
+            ),
+        ],
+    )
+    def get(self, request, *args, **kwargs):
+        return super().get(request, *args, **kwargs)
+
+    def get_queryset(self):
+        return DailyRecap.objects.filter(user=self.request.user)
