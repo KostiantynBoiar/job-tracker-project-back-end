@@ -4,6 +4,7 @@ from rest_framework.permissions import IsAuthenticated
 from drf_spectacular.utils import extend_schema, OpenApiExample, OpenApiParameter
 from drf_spectacular.types import OpenApiTypes
 from django.db.models import Count
+from django_filters.rest_framework import DjangoFilterBackend
 from .services import JobService, SavedJobService
 from .serializers import (
     JobSerializer,
@@ -75,6 +76,7 @@ class JobListView(generics.ListAPIView):
     permission_classes = [IsAuthenticated]
     serializer_class = JobSerializer
     pagination_class = StandardPagination
+    filter_backends = [DjangoFilterBackend]
     filterset_class = JobFilter
 
     @extend_schema(

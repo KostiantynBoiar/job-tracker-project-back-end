@@ -6,7 +6,7 @@ from .models import Job
 class JobFilter(django_filters.FilterSet):
     search = django_filters.CharFilter(method='filter_search', label='Search')
     company = django_filters.NumberFilter(field_name='company__id', lookup_expr='exact')
-    company_in = django_filters.BaseInFilter(field_name='company__id', lookup_expr='in')
+    company_in = django_filters.BaseInFilter(field_name='company__name', lookup_expr='in')
     employment_type = django_filters.CharFilter(field_name='employment_type', lookup_expr='exact')
     employment_type_in = django_filters.BaseInFilter(field_name='employment_type', lookup_expr='in')
     experience_level = django_filters.CharFilter(field_name='experience_level', lookup_expr='exact')
