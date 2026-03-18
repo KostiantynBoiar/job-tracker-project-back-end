@@ -10,19 +10,19 @@ from .views import (
     SavedJobDetailView,
     SavedJobUpdateView,
     SavedJobDeleteView,
+    JobCompaniesView,
 )
 
 app_name = 'jobs'
 
 urlpatterns = [
-    # Jobs
     path('', JobListView.as_view(), name='list'),
+    path('companies/', JobCompaniesView.as_view(), name='companies'),
     path('create/', JobCreateView.as_view(), name='create'),
     path('<int:pk>/', JobDetailView.as_view(), name='detail'),
     path('<int:pk>/update/', JobUpdateView.as_view(), name='update'),
     path('<int:pk>/delete/', JobDeleteView.as_view(), name='delete'),
 
-    # Saved Jobs
     path('saved/', SavedJobListView.as_view(), name='saved-list'),
     path('saved/create/', SavedJobCreateView.as_view(), name='saved-create'),
     path('saved/<int:pk>/', SavedJobDetailView.as_view(), name='saved-detail'),

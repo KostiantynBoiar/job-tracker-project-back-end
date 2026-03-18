@@ -3,6 +3,7 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from drf_spectacular.utils import extend_schema, OpenApiExample, OpenApiParameter
 from drf_spectacular.types import OpenApiTypes
+from django.db.models import Count
 from .services import JobService, SavedJobService
 from .serializers import (
     JobSerializer,
@@ -20,6 +21,8 @@ from .exceptions import (
     SavedJobNotFoundException,
     SavedJobAlreadyExistsException,
 )
+from .filters import JobFilter
+from apps.companies.models import Company
 
 
 class JobCreateView(generics.GenericAPIView):
@@ -67,11 +70,12 @@ class JobCreateView(generics.GenericAPIView):
 
 class JobListView(generics.ListAPIView):
     """
-    List all job postings with pagination.
+    List all job postings with pagination and filtering.
     """
     permission_classes = [IsAuthenticated]
     serializer_class = JobSerializer
     pagination_class = StandardPagination
+    filterset_class = JobFilter
 
     @extend_schema(
         parameters=[
@@ -80,10 +84,7 @@ class JobListView(generics.ListAPIView):
                 type=OpenApiTypes.STR,
                 enum=['preference', 'date', 'salary', 'company'],
                 default='date',
-                description=(
-                    'Sort jobs by: preference (personalised score), '
-                    'date (posted_at), salary (salary_max), or company name.'
-                ),
+                description='Sort jobs by: preference, date, salary, or company name.',
             ),
             OpenApiParameter(
                 name='order',
@@ -101,6 +102,58 @@ class JobListView(generics.ListAPIView):
                 name='page_size',
                 type=OpenApiTypes.INT,
                 description='Number of items per page (default: 20, max: 100)',
+            ),
+            OpenApiParameter(
+                name='search',
+                type=OpenApiTypes.STR,
+                description='Search in job title, company name, and location',
+            ),
+            OpenApiParameter(
+                name='company',
+                type=OpenApiTypes.INT,
+                description='Filter by company ID',
+            ),
+            OpenApiParameter(
+                name='company_in',
+                type=OpenApiTypes.STR,
+                description='Filter by multiple company IDs (comma-separated)',
+            ),
+            OpenApiParameter(
+                name='employment_type',
+                type=OpenApiTypes.STR,
+                enum=['full_time', 'part_time', 'contract', 'freelance', 'internship'],
+                description='Filter by employment type',
+            ),
+            OpenApiParameter(
+                name='employment_type_in',
+                type=OpenApiTypes.STR,
+                description='Filter by multiple employment types (comma-separated)',
+            ),
+            OpenApiParameter(
+                name='experience_level',
+                type=OpenApiTypes.STR,
+                enum=['entry', 'mid', 'senior', 'executive'],
+                description='Filter by experience level',
+            ),
+            OpenApiParameter(
+                name='experience_level_in',
+                type=OpenApiTypes.STR,
+                description='Filter by multiple experience levels (comma-separated)',
+            ),
+            OpenApiParameter(
+                name='is_remote',
+                type=OpenApiTypes.BOOL,
+                description='Filter remote jobs only',
+            ),
+            OpenApiParameter(
+                name='salary_min',
+                type=OpenApiTypes.NUMBER,
+                description='Minimum salary filter',
+            ),
+            OpenApiParameter(
+                name='salary_max',
+                type=OpenApiTypes.NUMBER,
+                description='Maximum salary filter',
             ),
         ],
     )
@@ -373,3 +426,37 @@ class SavedJobDeleteView(generics.GenericAPIView):
             raise
         except ValueError as e:
             return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+
+class JobCompaniesView(generics.GenericAPIView):
+    """
+    Get all companies that have job postings.
+    """
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        responses={
+            200: {
+                'type': 'array',
+                'items': {
+                    'type': 'object',
+                    'properties': {
+                        'id': {'type': 'integer'},
+                        'name': {'type': 'string'},
+                        'logo_url': {'type': 'string', 'nullable': True},
+                        'jobs_count': {'type': 'integer'},
+                    }
+                }
+            }
+        }
+    )
+    def get(self, request, *args, **kwargs):
+        companies = Company.objects.filter(
+            jobs__isnull=False
+        ).annotate(
+            jobs_count=Count('jobs')
+        ).values(
+            'id', 'name', 'logo_url', 'jobs_count'
+        ).order_by('name').distinct()
+        
+        return Response(list(companies), status=status.HTTP_200_OK)
